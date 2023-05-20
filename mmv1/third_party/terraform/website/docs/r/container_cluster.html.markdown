@@ -891,6 +891,8 @@ linux_node_config {
 
 * `node_group` - (Optional) Setting this field will assign instances of this pool to run on the specified node group. This is useful for running workloads on [sole tenant nodes](https://cloud.google.com/compute/docs/nodes/sole-tenant-nodes).
 
+* `node_affinity_file` - (Optional, [Beta](https://terraform.io/docs/providers/google/guides/provider_versions.html)) Setting this field will assign instances of this pool to run according to the specified node affinity file. 
+
 * `advanced_machine_features` - (Optional) Specifies options for controlling
   advanced machine features. Structure is documented below.
 

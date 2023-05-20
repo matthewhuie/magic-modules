@@ -9,6 +9,7 @@ import (
 	"testing"
 	"regexp"
 	"strconv"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -2779,6 +2780,61 @@ func TestAccContainerCluster_withSoleTenantGroup(t *testing.T) {
 		},
 	})
 }
+
+<% unless version == 'ga' -%>
+func TestAccContainerCluster_withNodeAffinityFile_default(t *testing.T) {
+	t.Parallel()
+
+	resourceName := fmt.Sprintf("tf-test-%s", RandString(t, 10))
+	ownerProject := fmt.Sprintf("tf-test-o-%d", RandInt(t))
+	consumerProject := fmt.Sprintf("tf-test-c-%d", RandInt(t))
+    filename := os.Getenv("GKE_NODE_AFFINITY_FILE")
+
+	VcrTest(t, resource.TestCase{
+		PreCheck:     func() { acctest.AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
+		CheckDestroy: testAccCheckContainerClusterDestroyProducer(t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContainerCluster_withNodeAffinityFile_default(resourceName, ownerProject, consumerProject, filename),
+				Check: resource.TestCheckResourceAttrSet("google_container_cluster.primary", "node_config.node_affinity_file")
+			},
+			{
+				ResourceName:        "google_container_cluster.primary",
+				ImportState:         true,
+				ImportStateVerify:   true,
+			},
+		},
+	})
+}
+
+func TestAccContainerCluster_withNodeAffinityFile_custom(t *testing.T) {
+	t.Parallel()
+
+	resourceName := fmt.Sprintf("tf-test-%s", RandString(t, 10))
+	ownerProject := fmt.Sprintf("tf-test-o-%d", RandInt(t))
+	consumerProject := fmt.Sprintf("tf-test-c-%d", RandInt(t))
+	nodeAffinityLabels := os.Getenv("GKE_NODE_AFFINITY_LABELS")
+    filename := os.Getenv("GKE_NODE_AFFINITY_FILE")
+
+	VcrTest(t, resource.TestCase{
+		PreCheck:     func() { acctest.AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: ProtoV5ProviderFactories(t),
+		CheckDestroy: testAccCheckContainerClusterDestroyProducer(t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContainerCluster_withNodeAffinityFile_custom(resourceName, ownerProject, consumerProject, nodeAffinityLabels, filename),
+				Check: resource.TestCheckResourceAttrSet("google_container_cluster.primary", "node_config.node_affinity_file")
+			},
+			{
+				ResourceName:        "google_container_cluster.primary",
+				ImportState:         true,
+				ImportStateVerify:   true,
+			},
+		},
+	})
+}
+<% end -%>
 
 <% unless version == 'ga' -%>
 // consider merging this test with TestAccContainerCluster_nodeAutoprovisioningDefaults
@@ -7451,6 +7507,96 @@ resource "google_container_cluster" "primary" {
 `, name, name, name)
 }
 
+<% unless version == 'ga' -%>
+func testAccContainerCluster_withNodeAffinityFile_default(name string, ownerProject string, consumerProject string, filename string) string {
+	return fmt.Sprintf(`
+resource "google_project" "owner" {
+  name        = "%s"
+  project_id  = "%s"
+}
+
+resource "google_project" "consumer" {
+  name        = "%s"
+  project_id  = "%s"
+}
+
+resource "google_compute_node_template" "soletenant-tmpl" {
+  name      = "%s"
+  project   = "%s"
+  region    = "us-central1"
+  node_type = "n1-node-96-624"
+}
+
+resource "google_compute_node_group" "group" {
+  name          = "%s"
+  project	    = "%s"
+  zone          = "us-central1-f"
+  description   = "example google_compute_node_group for Terraform Google Provider"
+  size          = 1
+  node_template = google_compute_node_template.soletenant-tmpl.id
+}
+
+resource "google_container_cluster" "primary" {
+  name               = "%s"
+  project            = "%s"
+  location           = "us-central1-f"
+  initial_node_count = 1
+  node_config {
+    machine_type    = "n1-standard-1"  // can't be e2 because of local-ssd
+    disk_size_gb    = 15
+    disk_type       = "pd-ssd"
+    node_affinity_file = "%s"
+  }
+}
+`, name, ownerProject, name, consumerProject, name, ownerProject, name, ownerProject, name, consumerProject, filename)
+}
+<% end -%>
+
+<% unless version == 'ga' -%>
+func testAccContainerCluster_withNodeAffinityFile_custom(name string, ownerProject string, consumerProject string, nodeAffinityLabels string, filename string) string {
+	return fmt.Sprintf(`
+resource "google_project" "owner" {
+  name        = "%s"
+  project_id  = "%s"
+}
+
+resource "google_project" "consumer" {
+  name        = "%s"
+  project_id  = "%s"
+}
+
+resource "google_compute_node_template" "soletenant-tmpl" {
+  name      = "%s"
+  project   = "%s"
+  region    = "us-central1"
+  node_type = "n1-node-96-624"
+  node_affinity_labels = "%s"
+}
+
+resource "google_compute_node_group" "group" {
+  name          = "%s"
+  project	    = "%s"
+  zone          = "us-central1-f"
+  description   = "example google_compute_node_group for Terraform Google Provider"
+  size          = 1
+  node_template = google_compute_node_template.soletenant-tmpl.id
+}
+
+resource "google_container_cluster" "primary" {
+  name               = "%s"
+  project            = "%s"
+  location           = "us-central1-f"
+  initial_node_count = 1
+  node_config {
+    machine_type    = "n1-standard-1"  // can't be e2 because of local-ssd
+    disk_size_gb    = 15
+    disk_type       = "pd-ssd"
+    node_affinity_file = "%s"
+  }
+}
+`, name, ownerProject, name, consumerProject, name, ownerProject, nodeAffinityLabels, name, ownerProject, name, consumerProject, filename)
+}
+<% end -%>
 
 <% unless version == 'ga' -%>
 func testAccContainerCluster_withTPUConfig(network, cluster string) string {
